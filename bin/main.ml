@@ -6,7 +6,6 @@ let todo_url = "https://jsonplaceholder.typicode.com/todos/1"
 let fetch_todo_as_json _ =
   Fetch.fetch_json todo_url
   |> Promise.then_ (fun json ->
-    Console.log json;
     let json = Obj.magic json in
     Printf.sprintf "userId: %d, id: %d, title: %s, completed: %b" json##.userId json##.id json##.title json##.completed
   )
