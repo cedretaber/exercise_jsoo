@@ -4,17 +4,27 @@ open Utils
 let todo_url = "https://jsonplaceholder.typicode.com/todos/1"
 
 let parse_todo json =
-  let user_id = Js.Opt.get json##.userId (fun _ -> Js.int32 (-1l)) |> Js.to_int32 |> Int32.to_int in
-  let id = Js.Opt.get json##.id (fun _ -> Js.int32 (-1l)) |> Js.to_int32 |> Int32.to_int in
-  let title = Js.Opt.get json##.title (fun _ -> Js.string "") |> Js.to_string in
-  let completed = Js.Opt.get json##.completed (fun _ -> Js.bool false) |> Js.to_bool in
-  user_id, id, title, completed
+  match
+    Js.Optdef.to_option json##.userId,
+    Js.Optdef.to_option json##.id,
+    Js.Optdef.to_option json##.title,
+    Js.Optdef.to_option json##.completed
+  with
+  | Some userId, Some id, Some title, Some completed ->
+      Printf.sprintf
+        "userId: %d, id: %d, title: %s, completed: %b"
+        (Js.to_int32 userId |> Int32.to_int)
+        (Js.to_int32 id |> Int32.to_int)
+        (Js.to_string title)
+        (Js.to_bool completed)
+  | _ ->
+      "Invalid JSON"
 
 let fetch_todo_as_json _ =
   Fetch.fetch_json todo_url
   |> Promise.then_ (fun json ->
-    let user_id, id, title, completed = parse_todo json in
-    Printf.sprintf "userId: %d, id: %d, title: %s, completed: %b" user_id id title completed
+    Console.log json;
+    parse_todo json
   )
 
 let parse_todo = function
@@ -33,8 +43,7 @@ let fetch_todo_as_text _ =
   |> Promise.then_ (fun text ->
     Console.log text;
     let text = Js.to_string text in
-    let open Yojson.Safe in
-    let json = from_string text in
+    let json = Yojson.Safe.from_string text in
     parse_todo json
   )
 
