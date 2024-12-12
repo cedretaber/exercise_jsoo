@@ -1,6 +1,21 @@
 open Js_of_ocaml
 open Utils
 
+module Todo = struct
+  type t = {
+    user_id : int;
+    id : int;
+    title : string;
+    completed : bool;
+  }
+
+  let make ~user_id ~id ~title ~completed = { user_id; id; title; completed }
+
+  let to_string = function
+    | { user_id; id; title; completed } ->
+        Printf.sprintf "userId: %d, id: %d, title: %s, completed: %b" user_id id title completed
+end
+
 let todo_url = "https://jsonplaceholder.typicode.com/todos/1"
 
 let parse_todo json =
@@ -10,15 +25,16 @@ let parse_todo json =
     Js.Optdef.to_option json##.title,
     Js.Optdef.to_option json##.completed
   with
-  | Some userId, Some id, Some title, Some completed ->
-      Printf.sprintf
-        "userId: %d, id: %d, title: %s, completed: %b"
-        (Js.to_int32 userId |> Int32.to_int)
-        (Js.to_int32 id |> Int32.to_int)
-        (Js.to_string title)
-        (Js.to_bool completed)
+  | Some user_id, Some id, Some title, Some completed ->
+      Result.Ok (
+        Todo.make
+          ~user_id:(Js.to_int32 user_id |> Int32.to_int)
+          ~id:(Js.to_int32 id |> Int32.to_int)
+          ~title:(Js.to_string title)
+          ~completed:(Js.to_bool completed)
+      )
   | _ ->
-      "Invalid JSON"
+      Result.Error "Invalid JSON"
 
 let fetch_todo_as_json _ =
   Fetch.fetch_json todo_url
@@ -29,14 +45,14 @@ let fetch_todo_as_json _ =
 
 let parse_todo = function
   | `Assoc [
-      ("userId", `Int userId);
+      ("userId", `Int user_id);
       ("id", `Int id);
       ("title", `String title);
       ("completed", `Bool completed)
     ] ->
-      Printf.sprintf "userId: %d, id: %d, title: %s, completed: %b" userId id title completed
+      Result.Ok (Todo.make ~user_id ~id ~title ~completed)
   | json ->
-      Printf.sprintf "Invalid JSON: %s" (Yojson.Safe.show json)
+      Result.Error (Printf.sprintf "Invalid JSON: %s" @@ Yojson.Safe.show json)
 
 let fetch_todo_as_text _ =
   Fetch.fetch_text todo_url
@@ -53,12 +69,30 @@ let onclick f =
 
 let onclick_json _ =
   print_endline "fetching todo as json";
-  let f = fun f -> fetch_todo_as_json () |> Promise.then_ f |> ignore in
+  let f = fun f ->
+    fetch_todo_as_json ()
+    |> Promise.then_ (fun result ->
+      match result with
+      | Result.Ok todo -> Todo.to_string todo
+      | Result.Error err -> err
+    )
+    |> Promise.then_ f
+    |> ignore
+  in
   onclick f
 
 let onclick_text _ =
   print_endline "fetching todo as text";
-  let f = fun f -> fetch_todo_as_text () |> Promise.then_ f |> ignore in
+  let f = fun f ->
+    fetch_todo_as_text ()
+    |> Promise.then_ (fun result ->
+      match result with
+      | Result.Ok todo -> Todo.to_string todo
+      | Result.Error err -> err
+    )
+    |> Promise.then_ f
+    |> ignore
+  in
   onclick f
 
 let onload _ =
